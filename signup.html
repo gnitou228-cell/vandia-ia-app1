@@ -20,6 +20,8 @@
 
   <!-- Supabase JS -->
   
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="dashboard-body">
 
@@ -337,12 +339,22 @@
 
   <!-- Interactive JavaScript Engine -->
   
-  <script>
+    <script>
+    // --- 1. SUPABASE CONFIGURATION ---
+    const supabaseUrl = 'https://gpuulvcxdgqupxlpbfy.supabase.co';
+    const supabaseKey = 'sb_publishable_YdZRv-TikwulFFptUPGTWg_7BaaAXbs';
+    let supabase = null;
+    if (window.supabase) {
+      supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      console.log('✅ Supabase est connecté !');
+    } else {
+      console.error('❌ Le CDN Supabase n\'est pas chargé.');
+    }
+
     // Global User State
     let selectedPlan = 'pro';
     let selectedPayMethod = 'wave';
 
-    // Parse URL params for pre-selection (e.g., ?mode=login or ?plan=basic)
     document.addEventListener('DOMContentLoaded', () => {
       const urlParams = new URLSearchParams(window.location.search);
       const mode = urlParams.get('mode');
@@ -356,14 +368,12 @@
         if (card) selectPlanOption(plan, card);
       }
 
-      // Password Strength Listener
       const pwdInput = document.getElementById('regPassword');
       if (pwdInput) {
         pwdInput.addEventListener('input', updatePasswordStrength);
       }
     });
 
-    // Switch between Register & Login
     function switchAuthMode(mode) {
       const regForm = document.getElementById('registerForm');
       const logForm = document.getElementById('loginForm');
@@ -389,7 +399,6 @@
       }
     }
 
-    // Toggle Password Visibility
     function togglePasswordVisibility(inputId, btn) {
       const input = document.getElementById(inputId);
       const icon = btn.querySelector('i');
@@ -402,7 +411,6 @@
       }
     }
 
-    // Password Strength Meter
     function updatePasswordStrength() {
       const val = document.getElementById('regPassword').value;
       const b1 = document.getElementById('pwdBar1');
@@ -452,14 +460,12 @@
       }
     }
 
-    // Plan Option Selection
     function selectPlanOption(planKey, card) {
       selectedPlan = planKey;
       document.querySelectorAll('.plan-option-card').forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
     }
 
-    // Pay Option Selection
     function selectPayOption(payKey, pill) {
       selectedPayMethod = payKey;
       document.querySelectorAll('.auth-pay-pill').forEach(p => p.classList.remove('selected'));
@@ -467,7 +473,7 @@
     }
 
     // Submit Inscription
-    document.getElementById('registerForm').addEventListener('submit', (e) => {
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       
       const btn = document.getElementById('regSubmitBtn');
@@ -477,9 +483,37 @@
 
       const fullName = document.getElementById('regFullName').value;
       const email = document.getElementById('regEmail').value;
+      const password = document.getElementById('regPassword').value;
       const countryCode = document.getElementById('regCountryCode').value;
       const phone = document.getElementById('regPhone').value;
       const fullPhone = countryCode + ' ' + phone;
+
+      if (!supabase) {
+        alert("Erreur: Connexion au serveur impossible.");
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            full_name: fullName,
+            phone: fullPhone,
+            plan: selectedPlan,
+            payment_method: selectedPayMethod
+          }
+        }
+      });
+
+      if (error) {
+        alert("Erreur lors de l'inscription : " + error.message);
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+        return;
+      }
 
       const userProfile = {
         name: fullName || 'Client VANDIA',
@@ -492,19 +526,17 @@
       
       localStorage.setItem('vandia_user', JSON.stringify(userProfile));
 
-      setTimeout(() => {
-        const overlay = document.getElementById('celebrationOverlay');
-        document.getElementById('celebTitle').textContent = 'Félicitations ' + userProfile.name + ' ! 🎉';
-        overlay.classList.add('active');
+      const overlay = document.getElementById('celebrationOverlay');
+      document.getElementById('celebTitle').textContent = 'Félicitations ' + userProfile.name + ' ! 🎉';
+      overlay.classList.add('active');
 
-        setTimeout(() => {
-          window.location.href = 'dashboard.html';
-        }, 2000);
-      }, 1500);
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 2000);
     });
 
     // Submit Connexion
-    document.getElementById('loginForm').addEventListener('submit', (e) => {
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const btn = document.getElementById('loginSubmitBtn');
@@ -512,24 +544,48 @@
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Connexion en cours...</span>';
       btn.disabled = true;
 
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+
+      if (!supabase) {
+        alert("Erreur: Connexion au serveur impossible.");
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        let msg = error.message;
+        if (msg.includes('Invalid login')) msg = 'Email ou mot de passe incorrect';
+        alert("Erreur de connexion : " + msg);
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+        return;
+      }
+
+      const userMeta = data.user.user_metadata || {};
+      const userName = userMeta.full_name || email.split('@')[0];
+      
+      const userProfile = {
+        name: userName,
+        email: email,
+        plan: userMeta.plan || 'pro'
+      };
+      localStorage.setItem('vandia_user', JSON.stringify(userProfile));
+
+      const overlay = document.getElementById('celebrationOverlay');
+      document.getElementById('celebTitle').textContent = 'Ravi de vous revoir ' + userProfile.name + ' ! 👋';
+      document.getElementById('celebText').textContent = 'Connexion sécurisée réussie... Chargement du tableau de bord.';
+      overlay.classList.add('active');
+
       setTimeout(() => {
-        const existing = localStorage.getItem('vandia_user');
-        const userProfile = existing ? JSON.parse(existing) : {
-          name: 'Client VANDIA',
-          email: document.getElementById('loginEmail').value,
-          plan: 'pro'
-        };
-        localStorage.setItem('vandia_user', JSON.stringify(userProfile));
-
-        const overlay = document.getElementById('celebrationOverlay');
-        document.getElementById('celebTitle').textContent = 'Ravi de vous revoir ' + userProfile.name + ' ! 👋';
-        document.getElementById('celebText').textContent = 'Connexion sécurisée réussie... Chargement du tableau de bord.';
-        overlay.classList.add('active');
-
-        setTimeout(() => {
-          window.location.href = 'dashboard.html';
-        }, 1500);
-      }, 1200);
+        window.location.href = 'dashboard.html';
+      }, 1500);
     });
 
     // Social Auth Simulation
@@ -555,6 +611,10 @@
   </script>
 </body>
 </html>
+
+
+
+
 
 
 
