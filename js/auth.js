@@ -129,7 +129,13 @@ function selectPayOption(payKey, pill) {
 // --- SUPABASE CONFIGURATION ---
 const supabaseUrl = 'https://gpuulvcxdgqupxlpbfy.supabase.co';
 const supabaseKey = 'sb_publishable_YdZRv-TikwulFFptUPGTWg_7BaaAXbs';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+let supabase = null;
+
+if (window.supabase) {
+  supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+} else {
+  console.warn('Supabase JS client is not loaded. Auth will fail.');
+}
 
 // --- SUBMIT INSCRIPTION ---
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
@@ -146,6 +152,13 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
   const countryCode = document.getElementById('regCountryCode').value;
   const phone = document.getElementById('regPhone').value.trim();
   const fullPhone = countryCode + ' ' + phone;
+
+  if (!supabase) {
+    alert("Erreur de connexion au serveur Supabase. Veuillez recharger la page.");
+    btn.innerHTML = originalHTML;
+    btn.disabled = false;
+    return;
+  }
 
   // Create Supabase User
   const { data, error } = await supabase.auth.signUp({
@@ -201,6 +214,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
 
+  if (!supabase) {
+    alert("Erreur de connexion au serveur Supabase. Veuillez recharger la page.");
+    btn.innerHTML = originalHTML;
+    btn.disabled = false;
+    return;
+  }
+
   // Supabase Login
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email,
@@ -255,4 +275,3 @@ function simulateSocialAuth(provider) {
     window.location.href = 'dashboard.html';
   }, 1400);
 }
-
